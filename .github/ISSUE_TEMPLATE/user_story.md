@@ -1,17 +1,21 @@
-Title: [US] Назва функціональності
-Labels: user-story
+---
+name: User Story
+about: Create a new user story
+title: "[USER STORY] "
+labels: user-story
+---
 
 ## User Story
-Як [роль],  
-я хочу [дія],  
-щоб [цінність].
+As a [role],
+I want [action],
+So that [value].
 
 ## Acceptance Criteria
-- [ ] Критерій 1
-- [ ] Критерій 2
-- [ ] Критерій 3
-- [ ] Критерій 4
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+- [ ] Criterion 4
 
-### Додатково
-- **Модуль:** 
-- **Пріоритет:** High / Medium / Low
+### Additional
+- **Module:** 
+- **Priority:** High / Medium / Low
