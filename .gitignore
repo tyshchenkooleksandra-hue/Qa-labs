@@ -1,7 +1,0 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
-
-/.vs
-/CompomiseMethod/bin/Debug/net8.0
-/CompomiseMethod/obj
