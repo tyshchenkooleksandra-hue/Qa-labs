@@ -3,6 +3,8 @@ name: User Story
 about: Create a new user story
 title: "[USER STORY] "
 labels: user-story
+assignees: ''
+
 ---
 
 ## User Story

@@ -3,6 +3,8 @@ name: Requirement Question
 about: Clarify unclear or problematic requirement
 title: "[QUESTION] Clarification of requirement: "
 labels: question
+assignees: ''
+
 ---
 
 ## Original Requirement
@@ -18,4 +20,4 @@ Provide a clearer, testable reformulation of the requirement.
 
 ## Questions to the stakeholder
 1. 
-2. 
+2.
