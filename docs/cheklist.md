@@ -22,5 +22,5 @@
 - [ ] Verify the adaptability of the page and the generated table on mobile devices (ensure there is no horizontal scrolling that breaks the layout).
 - [ ] Verify text readability, color contrast, and spacing within the generated schedule table.
 - [ ] Verify the presence and clarity of the text instruction for the user at the top of the page.
-- [ ] Verify the correct operation of the language switcher (UK/UA flags) — instant translation of all interface elements, placeholders, and messages (e.g., "Schedule is empty").
+- [ ] Verify the correct operation of the language switcher (UK/UA flags) - instant translation of all interface elements, placeholders, and messages (e.g., "Schedule is empty").
 - [ ] Verify the presence of visual feedback (hover effects) when the cursor hovers over the search button, dropdown fields, and navigation buttons ("Home", "Log in").
