@@ -14,7 +14,7 @@
 - [ ] Verify the inability to search (the button remains disabled) if a teacher is selected, but a semester is not.
 - [ ] Verify system behavior when attempting to spoof the teacher ID via developer tools (DevTools) to a non-existent one (e.g., `9999`) before sending the request (expecting a handled "Not found" error, not a site crash).
 - [ ] Verify system behavior when attempting to spoof the semester ID via DevTools to a text value (e.g., `abc`) (expecting a Validation Error / Bad Request).
-- [ ] Verify page loading and filter behavior when simulating a bad of internet connection (Offline mode).
+- [ ] Verify page loading and filter behavior when simulating a bad internet connection (Offline mode).
 
 ### UI/UX
 - [ ] Verify the adaptability of the page and the generated table on mobile devices (ensure there is no horizontal scrolling that breaks the layout).
