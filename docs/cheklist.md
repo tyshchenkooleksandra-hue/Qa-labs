@@ -8,7 +8,7 @@
 - [ ] Verify the schedule display in the "All" format (general schedule for the semester).
 - [ ] Verify the schedule display when changing the value in the "Format" field (e.g., selecting a specific week).
 - [ ] Verify the accuracy of the data in the generated table (matching days of the week, time, subject name, and room with the database data).
-- [ ] Verify that the search (play) button becomes active only after the mandatory fields (Semester and Teacher) are selected.
+- [ ] Verify that the search (play) button becomes active only after the mandatory fields (Semester) are selected.
 
 ### Negative Scenarios
 - [ ] Verify the inability to search (the button remains disabled) if a teacher is selected, but a semester is not.
