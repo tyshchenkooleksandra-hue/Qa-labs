@@ -5,7 +5,6 @@
 ### Positive Scenarios (Functionality)
 - [ ] Verify successful schedule display when a valid semester and teacher are selected (with existing classes in the database).
 - [ ] Verify the correct display of the "Schedule is empty" message for a teacher with no scheduled classes in the selected semester.
-- [ ] Verify the dependency of dropdown lists: when selecting a specific "Department", only teachers from that department remain in the "Teacher" list.
 - [ ] Verify the schedule display in the "All" format (general schedule for the semester).
 - [ ] Verify the schedule display when changing the value in the "Format" field (e.g., selecting a specific week).
 - [ ] Verify the accuracy of the data in the generated table (matching days of the week, time, subject name, and room with the database data).
