@@ -1,0 +1,51 @@
+databaseChangeLog:
+  - changeSet:
+      id: insert-initial-data
+      author: nromanen
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM periods
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO periods (end_time, name, start_time) VALUES
+              ('09:40:00', '1', '08:20:00'),
+              ('11:10:00', '2', '09:50:00'),
+              ('12:50:00', '3', '11:30:00'),
+              ('14:20:00', '4', '13:00:00');
+
+              INSERT INTO semesters (current_semester, description, disable, end_day, start_day, year, default_semester) VALUES
+              (true, 'desc', false, '2025-01-30', '2025-01-20', 2025, true);
+
+              INSERT INTO groups (disable, title, sort_order) VALUES
+              (false, '101-А', 1);
+              
+              INSERT INTO semester_group (semester_id, group_id) VALUES
+                            (1, 1);
+              
+              INSERT INTO semester_period (semester_id, period_id) VALUES
+                            (1, 1),
+                            (1, 2),
+                            (1, 3),
+                            (1, 4);
+
+              INSERT INTO subjects (disable, name) VALUES
+              (false, 'Актуальні питання історії та культури України');
+
+              INSERT INTO teachers (disable, name, patronymic, position, surname, user_id, department_id) VALUES
+              (false, 'Наталія', 'Михайлівна', 'доцент', 'Попович', null, null),
+              (false, 'Ігор', 'Дмитрович', 'асистент', 'Скутар', null, null),
+              (false, 'Володимир', 'Васильович', 'професор', 'Михайлюк', null, null);
+
+              INSERT INTO lessons (hours, lessontype, subject_for_site, group_id, subject_id, teacher_id, grouped, semester_id, link_to_meeting) VALUES
+              (1, 'LECTURE', 'Актуальні питання історії та культури України', 1, 1, 1, false, 1, null);
+              
+              INSERT INTO room_types (description) VALUES
+                            ('Лекційна'),
+                            ('практична'),
+                            ('лабораторія');
+              
+              INSERT INTO rooms (disable, name, room_type_id, sort_order) VALUES
+                            (false, '1 к. 15 ауд.', 1, 1);

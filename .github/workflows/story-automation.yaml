@@ -1,0 +1,302 @@
+# .github/workflows/story-automation.yml
+name: Story Automation
+
+on:
+  projects_v2_item:
+    types: [edited]
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  create-branch-on-in-progress:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'projects_v2_item'
+
+    steps:
+      - name: Get item details & check status
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const itemId = context.payload.projects_v2_item?.id;
+            if (!itemId) return core.setOutput('proceed', 'false');
+
+            const { node } = await github.graphql(`
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on ProjectV2Item {
+                    fieldValues(first: 20) {
+                      nodes {
+                        ... on ProjectV2ItemFieldSingleSelectValue {
+                          name
+                          field { ... on ProjectV2SingleSelectField { name } }
+                        }
+                      }
+                    }
+                    content {
+                      ... on Issue {
+                        number
+                        title
+                        labels(first: 10) {
+                          nodes { name }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { id: itemId });
+
+            const issue = node?.content;
+            if (!issue) return core.setOutput('proceed', 'false');
+
+            const hasStoryLabel = issue.labels.nodes.some(l => l.name === 'story');
+            if (!hasStoryLabel) return core.setOutput('proceed', 'false');
+
+            const statusField = node.fieldValues.nodes.find(
+              f => f.field?.name === 'Status'
+            );
+            const isInProgress = statusField?.name === 'In Progress';
+            if (!isInProgress) return core.setOutput('proceed', 'false');
+
+            const branchName = `story/${issue.number}-${issue.title
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-|-$/g, '')
+              .slice(0, 50)}`;
+
+            core.setOutput('proceed', 'true');
+            core.setOutput('branch', branchName);
+            core.setOutput('issue_number', issue.number);
+
+      - name: Checkout repo
+        if: steps.check.outputs.proceed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Create branch & comment
+        if: steps.check.outputs.proceed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const branch = '${{ steps.check.outputs.branch }}';
+            const issueNumber = '${{ steps.check.outputs.issue_number }}';
+
+            const { data: ref } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'heads/main', 
+            });
+
+            try {
+              await github.rest.git.getRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+              });
+              console.log(`Branch ${branch} already exists, skipping.`);
+            } catch {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `refs/heads/${branch}`,
+                sha: ref.object.sha,
+              });
+              console.log(`✅ Created branch: ${branch}`);
+
+              const body = [
+                `🌿 Branch was created automaticaly: \`${branch}\``,
+                '',
+                '```bash',
+                `git fetch origin && git checkout ${branch}`,
+                '```',
+              ].join('\n');
+              
+  move-to-review-on-pr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+
+    steps:
+      - name: Find linked issue & move to In Review
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const branchName = pr.head.ref;
+
+            const match = branchName.match(/story\/(\d+)/);
+            if (!match) return console.log('Not a story branch, skipping.');
+
+            const issueNumber = parseInt(match[1]);
+            console.log(`Linked issue: #${issueNumber}`);
+
+            const { repository } = await github.graphql(`
+              query($owner: String!, $repo: String!, $issue: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issue) {
+                    id
+                    projectItems(first: 10) {
+                      nodes {
+                        id
+                        project {
+                          id
+                          fields(first: 20) {
+                            nodes {
+                              ... on ProjectV2SingleSelectField {
+                                id
+                                name
+                                options { id name }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue: issueNumber,
+            });
+
+            const projectItems = repository.issue?.projectItems?.nodes;
+            if (!projectItems?.length) return console.log('Issue not found in any project.');
+
+            for (const item of projectItems) {
+              const statusField = item.project.fields.nodes.find(f => f.name === 'Status');
+              if (!statusField) continue;
+
+              const inReviewOption = statusField.options.find(o => o.name === 'In Review');
+              if (!inReviewOption) {
+                console.log('No "In Review" option found. Check your project status names.');
+                continue;
+              }
+
+              await github.graphql(`
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) { projectV2Item { id } }
+                }
+              `, {
+                projectId: item.project.id,
+                itemId: item.id,
+                fieldId: statusField.id,
+                optionId: inReviewOption.id,
+              });
+
+              console.log(`✅ Moved issue #${issueNumber} to "In Review"`);
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `👀 PR #${pr.number} opened — story moved to **In Review**\n${pr.html_url}`,
+              });
+            }
+
+  move-to-done-on-merge:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+
+    steps:
+      - name: Find linked issue & move to Done
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const branchName = pr.head.ref;
+
+            const match = branchName.match(/story\/(\d+)/);
+            if (!match) return console.log('Not a story branch, skipping.');
+
+            const issueNumber = parseInt(match[1]);
+            console.log(`Linked issue: #${issueNumber}`);
+
+            const { repository } = await github.graphql(`
+              query($owner: String!, $repo: String!, $issue: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issue) {
+                    id
+                    projectItems(first: 10) {
+                      nodes {
+                        id
+                        project {
+                          id
+                          fields(first: 20) {
+                            nodes {
+                              ... on ProjectV2SingleSelectField {
+                                id
+                                name
+                                options { id name }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue: issueNumber,
+            });
+
+            const projectItems = repository.issue?.projectItems?.nodes;
+            if (!projectItems?.length) return console.log('Issue not found in any project.');
+
+            for (const item of projectItems) {
+              const statusField = item.project.fields.nodes.find(f => f.name === 'Status');
+              if (!statusField) continue;
+
+              const doneOption = statusField.options.find(o => o.name === 'Done');
+              if (!doneOption) {
+                console.log('No "Done" option found. Check your project status names.');
+                continue;
+              }
+
+              await github.graphql(`
+                mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) { projectV2Item { id } }
+                }
+              `, {
+                projectId: item.project.id,
+                itemId: item.id,
+                fieldId: statusField.id,
+                optionId: doneOption.id,
+              });
+
+              console.log(`✅ Moved issue #${issueNumber} to "Done"`);
+
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                state: 'closed',
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `✅ PR #${pr.number} merged — story moved to **Done** and closed.`,
+              });
+            }

@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./src/test:/app/src/test
+      - ./build/reports:/app/build/reports
+    environment:
+      DB_URL: jdbc:postgresql://postgres-test:5432/schedule_test
+      DB_USER: postgres
+      DB_PASSWORD: root
+      REDIS_URL: redis://redis-test:6379
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+
+  frontend-tests:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - ./frontend/coverage:/app/coverage
+    command: sh -c "npm ci && npm test -- --watchAll=false"
+
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: schedule_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-test:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

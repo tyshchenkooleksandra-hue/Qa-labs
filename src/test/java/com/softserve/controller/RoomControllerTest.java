@@ -1,0 +1,314 @@
+package com.softserve.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.softserve.config.TestConfig;
+import com.softserve.dto.RoomDTO;
+import com.softserve.dto.RoomTypeDTO;
+import com.softserve.entity.Room;
+import com.softserve.entity.enums.EvenOdd;
+import com.softserve.mapper.RoomMapperImpl;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.DayOfWeek;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@Tag("integration")
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Import(TestConfig.class)
+@WithMockUser(
+        username = "first@mail.com",
+        password = "$2a$04$SpUhTZ/SjkDQop/Zvx1.seftJdqvOploGce/wau247zQhpEvKtz9.",
+        roles = "MANAGER"
+)
+@Sql(value = "classpath:create-rooms-before.sql")
+class RoomControllerTest {
+
+    private static final String ROOM_NOT_FOUND_MESSAGE = "Room was not found";
+    private static final String ROOM_NOT_FOUND_OR_NO_ORDER_MESSAGE =
+            "Room was not found or have not set sort order";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void getAllRooms() throws Exception {
+        mockMvc.perform(get("/rooms")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/json"));
+    }
+
+    @Test
+    void getRoomById() throws Exception {
+        mockMvc.perform(get("/rooms/{id}", 4)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/json"))
+                .andExpect(jsonPath("$.id").value(4));
+    }
+
+    @Test
+    @WithMockUser(
+            username = "first@mail.com",
+            password = "$2a$04$SpUhTZ/SjkDQop/Zvx1.seftJdqvOploGce/wau247zQhpEvKtz9.",
+            roles = "USER"
+    )
+    void returnForbiddenIfAuthenticatedUserRoleIsNotManager() throws Exception {
+        mockMvc.perform(get("/rooms/{id}", 4)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getFreeRoomsBySpecificPeriodDayOfWeekAndNumberOfWeek() throws Exception {
+        mockMvc.perform(get("/rooms/free")
+                        .param("semesterId", "1")
+                        .param("classId", "1")
+                        .param("dayOfWeek", DayOfWeek.MONDAY.toString())
+                        .param("evenOdd", EvenOdd.EVEN.toString())
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(content().contentType("application/json"));
+    }
+
+    @Test
+    void saveRoomIfSavedRoomDoesNotExist() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(4L);
+        roomTypeDTO.setDescription("Small auditory");
+
+        RoomDTO roomDtoForSave = new RoomDTO();
+        roomDtoForSave.setName("save small room");
+        roomDtoForSave.setType(roomTypeDTO);
+
+        mockMvc.perform(post("/rooms")
+                        .content(objectMapper.writeValueAsString(roomDtoForSave))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void updateRoom() throws Exception {
+        String roomJSON = """
+                {
+                  "id": 4,
+                  "name": "update medium room",
+                  "type": { "id": 5 }
+                }
+                """;
+
+        mockMvc.perform(put("/rooms")
+                        .content(roomJSON)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(4L))
+                .andExpect(jsonPath("$.name").value("update medium room"))
+                .andExpect(jsonPath("$.type.id").value(5L));
+    }
+
+    @Test
+    void deleteExistRoom() throws Exception {
+        mockMvc.perform(delete("/rooms/{id}", 5)
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void returnNotFoundIfRoomNotFoundedById() throws Exception {
+        mockMvc.perform(get("/rooms/100"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void returnBadRequestIfSavedNameIsNull() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(4L);
+        roomTypeDTO.setDescription("Small auditory");
+
+        RoomDTO roomDtoForSave = new RoomDTO();
+        roomDtoForSave.setName(null);
+        roomDtoForSave.setType(roomTypeDTO);
+
+        mockMvc.perform(post("/rooms")
+                        .content(objectMapper.writeValueAsString(roomDtoForSave))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnBadRequestIfUpdatedTypeIsNull() throws Exception {
+        RoomDTO roomDtoForUpdate = new RoomDTO();
+        roomDtoForUpdate.setId(4L);
+        roomDtoForUpdate.setName("update name");
+        roomDtoForUpdate.setType(null);
+
+        mockMvc.perform(put("/rooms", 4)
+                        .content(objectMapper.writeValueAsString(roomDtoForUpdate))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    void getDisableTeachers() throws Exception {
+        mockMvc.perform(get("/rooms/disabled")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/json"));
+    }
+
+    @Test
+    void getAllRoomsOrdered() throws Exception {
+        mockMvc.perform(get("/rooms/ordered")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/json"));
+    }
+
+    @Test
+    void saveRoomAfterId() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(4L);
+        roomTypeDTO.setDescription("Small auditory");
+
+        RoomDTO roomSave = new RoomDTO();
+        roomSave.setName("Save after 5");
+        roomSave.setType(roomTypeDTO);
+
+        mockMvc.perform(post("/rooms/after/{id}", 5)
+                        .content(objectMapper.writeValueAsString(roomSave))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void saveRoomAfterRoomThatDoesNotExist_ShouldReturn404() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(4L);
+        roomTypeDTO.setDescription("Small auditory");
+
+        RoomDTO roomSave = new RoomDTO();
+        roomSave.setName("Save after 123");
+        roomSave.setType(roomTypeDTO);
+
+        mockMvc.perform(post("/rooms/after/{id}", 123)
+                        .content(objectMapper.writeValueAsString(roomSave))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().is4xxClientError())
+                .andExpect(jsonPath("$.message").value(ROOM_NOT_FOUND_OR_NO_ORDER_MESSAGE));
+    }
+
+    @Test
+    void setRoomFirstOrder() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(5L);
+        roomTypeDTO.setDescription("Small auditory");
+
+        RoomDTO roomSave = new RoomDTO();
+        roomSave.setName("Save First");
+        roomSave.setType(roomTypeDTO);
+
+        mockMvc.perform(post("/rooms/after/{id}", 0)
+                        .content(objectMapper.writeValueAsString(roomSave))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void updateRoomSetOrder() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(5L);
+        roomTypeDTO.setDescription("Medium auditory");
+
+        RoomDTO roomDtoForUpdate = new RoomDTO();
+        roomDtoForUpdate.setId(4L);
+        roomDtoForUpdate.setName("update medium room");
+        roomDtoForUpdate.setType(roomTypeDTO);
+
+        Room roomForCompare = new RoomMapperImpl().convertToEntity(roomDtoForUpdate);
+
+        mockMvc.perform(put("/rooms/after/{id}", 5)
+                        .content(objectMapper.writeValueAsString(roomDtoForUpdate))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(roomForCompare.getId()))
+                .andExpect(jsonPath("$.type").value(roomForCompare.getType()))
+                .andExpect(jsonPath("$.name").value(roomForCompare.getName()));
+    }
+
+    @Test
+    void updateRoomWithSameOrder() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(5L);
+        roomTypeDTO.setDescription("Medium auditory");
+
+        RoomDTO roomDtoForUpdate = new RoomDTO();
+        roomDtoForUpdate.setId(5L);
+        roomDtoForUpdate.setName("update with id 2");
+        roomDtoForUpdate.setType(roomTypeDTO);
+
+        Room roomForCompare = new RoomMapperImpl().convertToEntity(roomDtoForUpdate);
+
+        mockMvc.perform(put("/rooms/after/{id}", 5)
+                        .content(objectMapper.writeValueAsString(roomDtoForUpdate))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(roomForCompare.getId()))
+                .andExpect(jsonPath("$.type").value(roomForCompare.getType()))
+                .andExpect(jsonPath("$.name").value(roomForCompare.getName()));
+    }
+
+    @Test
+    void placeAfterRoomThatDoesNotExist_Return404() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(5L);
+        roomTypeDTO.setDescription("Medium auditory");
+
+        RoomDTO roomDtoForUpdate = new RoomDTO();
+        roomDtoForUpdate.setId(5L);
+        roomDtoForUpdate.setName("update with id 2");
+        roomDtoForUpdate.setType(roomTypeDTO);
+
+        mockMvc.perform(put("/rooms/after/{id}", 10)
+                        .content(objectMapper.writeValueAsString(roomDtoForUpdate))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().is4xxClientError())
+                .andExpect(jsonPath("$.message").value(ROOM_NOT_FOUND_OR_NO_ORDER_MESSAGE));
+    }
+
+    @Test
+    void updatedRoomDoesNotExist_ShouldReturn404() throws Exception {
+        RoomTypeDTO roomTypeDTO = new RoomTypeDTO();
+        roomTypeDTO.setId(5L);
+        roomTypeDTO.setDescription("Medium auditory");
+
+        RoomDTO roomDtoForUpdate = new RoomDTO();
+        roomDtoForUpdate.setId(10L);
+        roomDtoForUpdate.setName("update with id 2");
+        roomDtoForUpdate.setType(roomTypeDTO);
+
+        mockMvc.perform(put("/rooms/after/{id}", 20)
+                        .content(objectMapper.writeValueAsString(roomDtoForUpdate))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().is4xxClientError())
+                .andExpect(jsonPath("$.message").value(ROOM_NOT_FOUND_MESSAGE));
+    }
+}

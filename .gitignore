@@ -1,0 +1,14 @@
+/build
+/.gradle
+/.idea
+/gradle
+/backup
+/src/main/resources/application-local.yaml
+.env
+/schedule_logs
+**/.DS_Store
+**/reports
+
+test*.js
+
+
